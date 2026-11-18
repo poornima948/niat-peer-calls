@@ -1,0 +1,71 @@
+{
+  "name": "NIAT Peer Calls - WhatsApp flow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "niat-peer-calls",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a1111111-0000-4000-8000-000000000001",
+      "name": "Webhook from app",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "niat-peer-calls"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns one app event into a list of WhatsApp messages, each with a delay in hours.\nconst b = $input.first().json.body || $input.first().json;\nconst out = [];\nconst wa = (n) => 'whatsapp:' + String(n).replace(/[^\\d+]/g, '').replace(/^(\\d{10})$/, '+91$1');\n\nif (b.event === 'matched') {\n  out.push({ to: wa(b.parent.phone), body: b.parent_message + '\\n\\nSlots: ' + b.slot_options.join(' | ') + '\\nReply with the one you prefer, or confirm on the page.', delayHours: 0 });\n  out.push({ to: wa(b.volunteer.phone), body: 'A parent would like a short, honest chat with you.\\n\\n' + b.brief_volunteer + '\\n\\nYou are not asked to promote NIAT. Share what you really experienced.', delayHours: 0 });\n}\nif (b.event === 'booked') {\n  out.push({ to: wa(b.parent.phone), body: 'Your call is booked for ' + b.slot + '. We will remind you before it starts.', delayHours: 0 });\n  out.push({ to: wa(b.volunteer.phone), body: 'The call is booked for ' + b.slot + '. Thank you for helping another parent.', delayHours: 0 });\n  out.push({ to: wa(b.parent.phone), body: 'How did your call go? Two minutes, three questions: ' + b.feedback_url, delayHours: 24 });\n}\nreturn out.map(m => ({ json: m }));"
+      },
+      "id": "a1111111-0000-4000-8000-000000000002",
+      "name": "Build messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ $json.delayHours }}",
+        "unit": "hours"
+      },
+      "id": "a1111111-0000-4000-8000-000000000003",
+      "name": "Wait (0h or 24h)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [720, 300],
+      "webhookId": "niat-peer-calls-wait"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/YOUR_TWILIO_ACCOUNT_SID/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "From", "value": "whatsapp:+14155238886" },
+            { "name": "To", "value": "={{ $('Build messages').item.json.to }}" },
+            { "name": "Body", "value": "={{ $('Build messages').item.json.body }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1111111-0000-4000-8000-000000000004",
+      "name": "Send WhatsApp (Twilio)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 300]
+    }
+  ],
+  "connections": {
+    "Webhook from app": { "main": [[{ "node": "Build messages", "type": "main", "index": 0 }]] },
+    "Build messages": { "main": [[{ "node": "Wait (0h or 24h)", "type": "main", "index": 0 }]] },
+    "Wait (0h or 24h)": { "main": [[{ "node": "Send WhatsApp (Twilio)", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
