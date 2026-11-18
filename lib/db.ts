@@ -12,8 +12,7 @@ const mem = g.__niatMem;
 
 let sb: SupabaseClient | null = null;
 function client(): SupabaseClient {
-  if (!sb) sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-  return sb;
+ if (!sb) sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: "no-store" }) } });
 }
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
